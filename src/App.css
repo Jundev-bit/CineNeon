@@ -250,6 +250,85 @@ body {
   }
 }
 
+.form-cadastro {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+  max-width: 600px;
+  margin-top: 25px;
+  padding: 25px;
+  background-color: #0d2d31;
+  border: 1px solid #018276;
+  border-radius: 12px;
+}
+
+.form-cadastro input,
+.form-cadastro select {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 14px;
+  background-color: #071719;
+  color: #ffffff;
+  border: 1px solid #255082;
+  border-radius: 8px;
+  font-size: 15px;
+  outline: none;
+}
+
+.form-cadastro input:focus,
+.form-cadastro select:focus {
+  border-color: #018276;
+  box-shadow: 0 0 12px rgba(1, 130, 118, 0.6);
+}
+
+.form-cadastro input::placeholder {
+  color: #8bafaa;
+}
+
+.form-cadastro button {
+  padding: 14px;
+  background-color: #018276;
+  color: #ffffff;
+  border: none;
+  border-radius: 8px;
+  font-weight: bold;
+  cursor: pointer;
+  transition: background-color 0.3s ease, box-shadow 0.3s ease;
+}
+
+.form-cadastro button:hover {
+  background-color: #018249;
+  box-shadow: 0 0 20px #018276;
+}
+
+.lista-biblioteca {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 20px;
+  margin-top: 30px;
+}
+
+.item-biblioteca {
+  padding: 20px;
+  background-color: #0d2d31;
+  border: 1px solid #018276;
+  border-radius: 10px;
+  transition: box-shadow 0.3s ease;
+}
+
+.item-biblioteca:hover {
+  box-shadow: 0 0 15px #018276;
+}
+
+.item-biblioteca h3 {
+  color: #ffffff;
+  margin-top: 0;
+}
+
+.item-biblioteca p {
+  color: #b0ceca;
+}
+
 
 
 
