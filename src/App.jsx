@@ -166,7 +166,8 @@ function App() {
       tipo: tipo,
       genero: genero.trim(),
       capa: capa,
-      nomeVideo: videoImportado?.nome ?? arquivoVideo?.name ?? ''
+      nomeVideo: videoImportado?.nome ?? arquivoVideo?.name ?? '',
+      arquivoVideoSalvo: videoImportado?.arquivo ?? null
     }
 
     try {
@@ -210,11 +211,11 @@ function App() {
     (item) => item.tipo === 'filme'
   )
   const filmesFiltrados = filmesCadastrados.filter((filme) => {
-  const texto = `${filme.titulo} ${filme.genero || ''}`.toLowerCase()
+    const texto = `${filme.titulo} ${filme.genero || ''}`.toLowerCase()
 
-  return (
-    texto.includes(busca.trim().toLowerCase()) &&
-    (generoFiltro === 'todos' || filme.genero === generoFiltro)
+    return (
+      texto.includes(busca.trim().toLowerCase()) &&
+      (generoFiltro === 'todos' || filme.genero === generoFiltro)
     )
   })
 
@@ -222,12 +223,12 @@ function App() {
     (item) => item.tipo === 'serie'
   )
   const seriesFiltradas = seriesCadastradas.filter((serie) => {
-  const texto = `${serie.titulo} ${serie.genero || ''}`.toLowerCase()
+    const texto = `${serie.titulo} ${serie.genero || ''}`.toLowerCase()
 
-  return (
-    texto.includes(busca.trim().toLowerCase()) &&
-    (generoFiltro === 'todos' || serie.genero === generoFiltro)
-  )
+    return (
+      texto.includes(busca.trim().toLowerCase()) &&
+      (generoFiltro === 'todos' || serie.genero === generoFiltro)
+    )
   })
 
 
@@ -250,6 +251,16 @@ function App() {
     }
   }
 
+  function obterUrlVideo(midia) {
+    if (
+      window.cineNeonAPI?.importarVideo &&
+      midia.arquivoVideoSalvo
+    ) {
+      return `cineneon-video://video/${encodeURIComponent(midia.arquivoVideoSalvo)}`
+    }
+
+    return videosDaSessao[midia.id] ?? null
+  }
 
 
   // ==========================================
@@ -302,23 +313,23 @@ function App() {
             onChange={(evento) => setBusca(evento.target.value)}
           />
           
-        <label htmlFor="filtro-genero">
-          Gênero
-        </label>
+          <label htmlFor="filtro-genero">
+            Gênero
+          </label>
 
-        <select
-          id="filtro-genero"
-          value={generoFiltro}
-          onChange={(evento) => setGeneroFiltro(evento.target.value)}
-        >
-          <option value="todos">Todos os gêneros</option>
+          <select
+            id="filtro-genero"
+            value={generoFiltro}
+            onChange={(evento) => setGeneroFiltro(evento.target.value)}
+          >
+            <option value="todos">Todos os gêneros</option>
 
-          {generosDisponiveis.map((genero) => (
-            <option key={genero} value={genero}>
-              {genero}
-            </option>
-          ))}
-        </select>
+            {generosDisponiveis.map((genero) => (
+              <option key={genero} value={genero}>
+                {genero}
+              </option>
+            ))}
+          </select>
 
         </div>
 
@@ -361,15 +372,16 @@ function App() {
                 {filme.genero || 'Gênero não informado'}
               </p>
 
-              {videosDaSessao[filme.id] ? (
-                <button
-                  type="button"
-                  onClick={() => setVideoAtivo(videosDaSessao[filme.id])}
-                >
-                  ▶ Assistir
-                </button>
-              ) : (
-                <p>Vídeo não disponível nesta sessão</p>
+              <button
+                type="button"
+                disabled={!obterUrlVideo(filme)}
+                onClick={() => setVideoAtivo(obterUrlVideo(filme))}
+              >
+                ▶ Assistir
+              </button>
+
+              {!obterUrlVideo(filme) && (
+                <p>Vídeo ainda não vinculado.</p>
               )}
 
             </article>
@@ -470,15 +482,16 @@ function App() {
                 {serie.genero || 'Gênero não informado'}
               </p>
               
-              {videosDaSessao[serie.id] ? (
-                <button
-                  type="button"
-                  onClick={() => setVideoAtivo(videosDaSessao[serie.id])}
-                >
-                  ▶ Assistir
-                </button>
-              ) : (
-                <p>Vídeo não disponível nesta sessão</p>
+              <button
+                type="button"
+                disabled={!obterUrlVideo(serie)}
+                onClick={() => setVideoAtivo(obterUrlVideo(serie))}
+              >
+                ▶ Assistir
+              </button>
+
+              {!obterUrlVideo(serie) && (
+                <p>Vídeo ainda não vinculado.</p>
               )}
 
 
