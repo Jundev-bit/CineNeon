@@ -1,6 +1,13 @@
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
+import {
+  listarMidias,
+  salvarMidia,
+  removerMidia
+} from './banco'
+
 import './App.css'
+
 
 function App() {
 
@@ -15,7 +22,47 @@ function App() {
   const [tipo, setTipo] = useState('filme')
   const [capa, setCapa] = useState('')
 
+  const [arquivoVideo, setArquivoVideo] = useState(null)
+  const [videosDaSessao, setVideosDaSessao] = useState({})
+  const [videoImportado, setVideoImportado] = useState(null)
+
+  const [busca, setBusca] = useState('')
+  const [generoFiltro, setGeneroFiltro] = useState('todos')
+
   const [itensBiblioteca, setItensBiblioteca] = useState([])
+
+  const [bancoPronto, setBancoPronto] = useState(false)
+
+  useEffect(() => {
+    let ativo = true
+
+    listarMidias()
+      .then((midias) => {
+        if (ativo) {
+          setItensBiblioteca(midias)
+          setBancoPronto(true)
+        }
+      })
+      .catch((erro) => {
+        console.error('Erro ao carregar biblioteca:', erro)
+        if (ativo) {
+          alert('Não foi possível carregar a biblioteca.')
+        }
+      })
+
+      return () => {
+        ativo = false
+      }
+  }, [])
+
+  const generosDisponiveis = [
+    ...new Set(
+      itensBiblioteca
+        .map((item) => item.genero?.trim())
+        .filter(Boolean)
+    )
+  ].sort((a, b) => a.localeCompare(b, 'pt-BR'))
+
 
 
   // ==========================================
@@ -67,37 +114,91 @@ function App() {
     leitor.readAsDataURL(arquivo)
   }
 
+  function selecionarVideo(evento) {
+    const arquivo = evento.target.files?.[0]
+
+    if (!arquivo) {
+      setArquivoVideo(null)
+      return
+    }
+
+    const formatos = ['video/mp4', 'video/webm']
+
+    if (!formatos.includes(arquivo.type)) {
+      alert('Selecionar um video MP4 ou WebM')
+      evento.target.value = ''
+      setArquivoVideo(null)
+      return
+    }
+
+    setArquivoVideo(arquivo)
+  }
+
+  async function importarVideoElectron() {
+    try {
+      const resultado = await window.cineNeonAPI.importarVideo()
+
+      if (!resultado) return
+
+      setVideoImportado(resultado)
+      setArquivoVideo(null)
+
+    } catch (erro) {
+      console.error('Erro ao importar video:', erro)
+      alert('Não foi possível importar o vídeo.')
+    }
+  }
 
   // ==========================================
   // 3. CADASTRAR FILMES E SÉRIES
   // ==========================================
 
-  function adicionarMidia(evento) {
-
+  async function adicionarMidia(evento) {
     evento.preventDefault()
 
-    if (!titulo.trim()) return
+    const formulario = evento.currentTarget
+
+    if (!bancoPronto || !titulo.trim()) return
 
     const novaMidia = {
       id: crypto.randomUUID(),
       titulo: titulo.trim(),
       tipo: tipo,
       genero: genero.trim(),
-      capa: capa
+      capa: capa,
+      nomeVideo: videoImportado?.nome ?? arquivoVideo?.name ?? ''
     }
 
-    setItensBiblioteca((anteriores) => [
-      ...anteriores,
-      novaMidia
-    ])
+    try {
+      await salvarMidia(novaMidia)
 
-    // Limpar o formulário
-    setTitulo('')
-    setGenero('')
-    setTipo('filme')
-    setCapa('')
+      if (arquivoVideo) {
+        const url = URL.createObjectURL(arquivoVideo)
 
-    evento.currentTarget.reset()
+        setVideosDaSessao((anteriores) => ({
+          ...anteriores,
+          [novaMidia.id]: url
+        }))
+      }
+
+      setItensBiblioteca((anteriores) => [
+        ...anteriores,
+        novaMidia
+      ])
+
+      setTitulo('')
+      setGenero('')
+      setTipo('filme')
+      setCapa('')
+      setArquivoVideo(null)
+      setVideoImportado(null)
+
+      formulario.reset()
+
+    } catch (erro) {
+      console.error('Erro ao salvar mídia:', erro)
+      alert('Não foi possível salvar o cadastro.')
+    }
   }
 
 
@@ -108,23 +209,47 @@ function App() {
   const filmesCadastrados = itensBiblioteca.filter(
     (item) => item.tipo === 'filme'
   )
+  const filmesFiltrados = filmesCadastrados.filter((filme) => {
+  const texto = `${filme.titulo} ${filme.genero || ''}`.toLowerCase()
+
+  return (
+    texto.includes(busca.trim().toLowerCase()) &&
+    (generoFiltro === 'todos' || filme.genero === generoFiltro)
+    )
+  })
 
   const seriesCadastradas = itensBiblioteca.filter(
     (item) => item.tipo === 'serie'
   )
+  const seriesFiltradas = seriesCadastradas.filter((serie) => {
+  const texto = `${serie.titulo} ${serie.genero || ''}`.toLowerCase()
+
+  return (
+    texto.includes(busca.trim().toLowerCase()) &&
+    (generoFiltro === 'todos' || serie.genero === generoFiltro)
+  )
+  })
 
 
   // ==========================================
   // 5. EXCLUIR ITEM DA BIBLIOTECA
   // ==========================================
 
-  function excluirMidia(id) {
 
-    setItensBiblioteca((anteriores) =>
-      anteriores.filter((item) => item.id !== id)
-    )
+  async function excluirMidia(id) {
+    try {
+      await removerMidia(id)
 
+      setItensBiblioteca((anteriores) =>
+        anteriores.filter((item) => item.id !== id)
+      )
+
+    } catch (erro) {
+      console.error('Erro ao excluir mídia:', erro)
+      alert('Não foi possível excluir o cadastro.')
+    }
   }
+
 
 
   // ==========================================
@@ -138,7 +263,7 @@ function App() {
       <header className="cabecalho">
 
         <h1>
-          CINE<span>NEON</span>
+          CINE<span>INPAR</span>
         </h1>
 
         <nav className="menu">
@@ -157,14 +282,47 @@ function App() {
 
       <section id="inicio" className="destaque">
 
-        <h2>Bem-vindo ao CineNeon</h2>
+        <h2>Bem-vindo</h2>
 
         <p>Sua biblioteca pessoal de filmes e séries.</p>
 
         <p>Assista aos seus vídeos online ou offline.</p>
 
-      </section>
 
+        <div className="area-busca">
+          <label htmlFor="buscar-midia">
+            Buscar na biblioteca
+          </label>
+
+          <input
+            id="buscar-midia"
+            type="search"
+            placeholder="Pesquisar filmes ou séries..."
+            value={busca}
+            onChange={(evento) => setBusca(evento.target.value)}
+          />
+          
+        <label htmlFor="filtro-genero">
+          Gênero
+        </label>
+
+        <select
+          id="filtro-genero"
+          value={generoFiltro}
+          onChange={(evento) => setGeneroFiltro(evento.target.value)}
+        >
+          <option value="todos">Todos os gêneros</option>
+
+          {generosDisponiveis.map((genero) => (
+            <option key={genero} value={genero}>
+              {genero}
+            </option>
+          ))}
+        </select>
+
+        </div>
+
+      </section>
 
       {/* ===================================== */}
       {/* FILMES */}
@@ -176,61 +334,9 @@ function App() {
 
         <div className="grade-videos">
 
-          {/* FILME DE TESTE 1 */}
-          <article className="card-video">
-
-            <div className="capa-video">
-              <img
-                src="/capas/Filme1.jpeg"
-                alt="Capa do Filme 1"
-                loading="lazy"
-                decoding="async"
-              />
-            </div>
-
-            <h3>Filme 1</h3>
-
-            <p>Aventura</p>
-
-            <button
-              type="button"
-              onClick={() => setVideoAtivo('/videos/filme1.mp4')}
-            >
-              ▶ Assistir
-            </button>
-
-          </article>
-
-
-          {/* FILME DE TESTE 2 */}
-          <article className="card-video">
-
-            <div className="capa-video">
-              <img
-                src="/capas/Filme2.jpeg"
-                alt="Capa do Filme 2"
-                loading="lazy"
-                decoding="async"
-              />
-            </div>
-
-            <h3>Filme 2</h3>
-
-            <p>Ficção científica</p>
-
-            <button
-              type="button"
-              onClick={() => setVideoAtivo('/videos/filme2.mp4')}
-            >
-              ▶ Assistir
-            </button>
-
-          </article>
-
-
           {/* FILMES CADASTRADOS PELO USUÁRIO */}
 
-          {filmesCadastrados.map((filme) => (
+          {filmesFiltrados.map((filme) => (
 
             <article className="card-video" key={filme.id}>
 
@@ -255,13 +361,38 @@ function App() {
                 {filme.genero || 'Gênero não informado'}
               </p>
 
-              <p>Vídeo ainda não adicionado</p>
+              {videosDaSessao[filme.id] ? (
+                <button
+                  type="button"
+                  onClick={() => setVideoAtivo(videosDaSessao[filme.id])}
+                >
+                  ▶ Assistir
+                </button>
+              ) : (
+                <p>Vídeo não disponível nesta sessão</p>
+              )}
 
             </article>
 
           ))}
 
         </div>
+
+        {filmesCadastrados.length > 0 && filmesFiltrados.length === 0 && (
+          <div className="estado-vazio">
+            <p>Nenhum filme encontrado na pesquisa.</p>
+          </div>
+        )}
+
+        {filmesCadastrados.length === 0 && (
+          <div className="estado-vazio">
+            <span className="estado-vazio-icone" aria-hidden="true">
+              🎞️
+            </span>
+            <p>Seus filmes cadastrados aparecerão aqui.</p>
+          </div>
+        )}
+
 
       </section>
 
@@ -312,61 +443,9 @@ function App() {
 
         <div className="grade-videos">
 
-          {/* SÉRIE DE TESTE 1 */}
-          <article className="card-video">
-
-            <div className="capa-video">
-              <img
-                src="/capas/Serie1.jpg"
-                alt="Capa da Série 1"
-                loading="lazy"
-                decoding="async"
-              />
-            </div>
-
-            <h3>Série 1</h3>
-
-            <p>Drama</p>
-
-            <button
-              type="button"
-              onClick={() => setVideoAtivo('/videos/serie1.mp4')}
-            >
-              ▶ Assistir
-            </button>
-
-          </article>
-
-
-          {/* SÉRIE DE TESTE 2 */}
-          <article className="card-video">
-
-            <div className="capa-video">
-              <img
-                src="/capas/Serie2.jpg"
-                alt="Capa da Série 2"
-                loading="lazy"
-                decoding="async"
-              />
-            </div>
-
-            <h3>Série 2</h3>
-
-            <p>Comédia</p>
-
-            <button
-              type="button"
-              onClick={() => setVideoAtivo('/videos/serie2.mp4')}
-            >
-              ▶ Assistir
-            </button>
-
-          </article>
-
-
           {/* SÉRIES CADASTRADAS PELO USUÁRIO */}
 
-          {seriesCadastradas.map((serie) => (
+          {seriesFiltradas.map((serie) => (
 
             <article className="card-video" key={serie.id}>
 
@@ -390,14 +469,39 @@ function App() {
               <p>
                 {serie.genero || 'Gênero não informado'}
               </p>
+              
+              {videosDaSessao[serie.id] ? (
+                <button
+                  type="button"
+                  onClick={() => setVideoAtivo(videosDaSessao[serie.id])}
+                >
+                  ▶ Assistir
+                </button>
+              ) : (
+                <p>Vídeo não disponível nesta sessão</p>
+              )}
 
-              <p>Vídeo ainda não adicionado</p>
 
             </article>
 
           ))}
 
         </div>
+
+        {seriesCadastradas.length > 0 && seriesFiltradas.length === 0 && (
+          <div className="estado-vazio">
+            <p>Nenhuma série encontrada na pesquisa.</p>
+          </div>
+        )}
+
+        {seriesCadastradas.length === 0 && (
+          <div className="estado-vazio">
+            <span className="estado-vazio-icone" aria-hidden="true">
+              📺
+            </span>
+            <p>Suas séries cadastradas aparecerão aqui.</p>
+          </div>
+        )}
 
       </section>
 
@@ -459,17 +563,24 @@ function App() {
 
 
           {/* CAPA DO FILME OU SÉRIE */}
-          <label htmlFor="capa-midia">
+          <label className="rotulo-upload" htmlFor="capa-midia">
             Capa do filme ou série
           </label>
 
-          <input
+          <input className="input-upload"
             id="capa-midia"
             type="file"
             accept="image/jpeg,image/png,image/webp"
             onChange={selecionarCapa}
           />
 
+          <label htmlFor="capa-midia" className="botao-upload">
+            🖼️ Selecionar capa
+          </label>
+
+          <span className="nome-arquivo">
+            {capa ? 'Capa selecionada' : 'Nenhuma capa selecionada'}
+          </span>
 
           {/* PRÉVIA DA CAPA */}
           {capa && (
@@ -482,9 +593,43 @@ function App() {
 
           )}
 
+          <label className="rotulo-upload">
+            Arquivo de vídeo
+          </label>
+
+          {window.cineNeonAPI?.importarVideo ? (
+            <button
+              type="button"
+              className="botao-upload"
+              onClick={importarVideoElectron}
+            >
+              🎬 Selecionar vídeo
+            </button>
+          ) : (
+            <>
+              <input
+                className="input-upload"
+                id="arquivo-video"
+                type="file"
+                accept="video/mp4,video/webm"
+                onChange={selecionarVideo}
+              />
+
+              <label htmlFor="arquivo-video" className="botao-upload">
+                🎬 Selecionar vídeo
+              </label>
+            </>
+          )}
+
+          <span className="nome-arquivo">
+            {videoImportado?.nome ??
+              arquivoVideo?.name ??
+              'Nenhum vídeo selecionado'}
+          </span>
+
 
           {/* BOTÃO CADASTRAR */}
-          <button type="submit">
+          <button type="submit" disabled={!bancoPronto}>
             + Adicionar à Biblioteca
           </button>
 
